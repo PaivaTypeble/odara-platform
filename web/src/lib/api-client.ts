@@ -81,6 +81,19 @@ export interface Asset {
   createdAt: string;
 }
 
+export interface MaintenanceEvent {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  assetName?: string;
+  condominiumName: string;
+  scheduledDate?: string;
+  completedDate?: string;
+  cost?: number;
+  createdAt: string;
+}
+
 // API Client
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
