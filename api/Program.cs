@@ -117,7 +117,12 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    
+    // Apply migrations or create database
     db.Database.EnsureCreated();
+    
+    // Seed demo data
+    await DbSeeder.SeedAsync(db);
 }
 
 app.Run();

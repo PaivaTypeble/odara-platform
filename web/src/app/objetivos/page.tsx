@@ -1,127 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Target, 
   Plus, 
   Search, 
   Filter, 
-  MoreHorizontal, 
   Calendar, 
   Clock,
   CheckCircle2,
   AlertCircle,
   Pause,
   ChevronRight,
-  Building2
+  Building2,
+  Loader2
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-
-// Mock data for objectives
-const mockObjectives = [
-  {
-    id: "1",
-    title: "Substituição portas de entrada",
-    description: "Substituir 24 portas de entrada do prédio",
-    condominium: "Parque das Flores",
-    assembly: "Assembleia 2024-03-15",
-    status: "in_progress",
-    priority: "high",
-    owner: "Maria Silva",
-    deadline: "2024-04-30",
-    progress: 60,
-    updates: 3,
-  },
-  {
-    id: "2",
-    title: "Limpeza fachadas",
-    description: "Contratar serviço de limpeza de fachadas",
-    condominium: "Vista Mar",
-    assembly: "Assembleia 2024-02-20",
-    status: "waiting_external",
-    priority: "medium",
-    owner: "João Costa",
-    deadline: "2024-05-15",
-    progress: 30,
-    updates: 2,
-  },
-  {
-    id: "3",
-    title: "Reparação elevador",
-    description: "Reparação do elevador do bloco B",
-    condominium: "Residencial Soleil",
-    assembly: "Assembleia 2024-01-10",
-    status: "blocked",
-    priority: "critical",
-    owner: "Pedro Santos",
-    deadline: "2024-03-20",
-    progress: 20,
-    updates: 5,
-  },
-  {
-    id: "4",
-    title: "Instalação câmaras segurança",
-    description: "Instalar sistema de CCTV no rés-do-chão",
-    condominium: "Prédio Central",
-    assembly: "Assembleia 2024-03-15",
-    status: "planned",
-    priority: "medium",
-    owner: "Ana Rodrigues",
-    deadline: "2024-06-01",
-    progress: 0,
-    updates: 1,
-  },
-  {
-    id: "5",
-    title: "Pintura hall entrada",
-    description: "Renovar pintura do hall de entrada",
-    condominium: "Parque das Flores",
-    assembly: "Assembleia 2024-02-20",
-    status: "completed",
-    priority: "low",
-    owner: "Maria Silva",
-    deadline: "2024-03-10",
-    progress: 100,
-    updates: 4,
-  },
-];
+import { objectivesApi, Objective } from "@/lib/api-client";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "destructive" | "secondary"; icon: React.ElementType }> = {
-  draft: { label: "Rascunho", variant: "secondary", icon: Clock },
-  planned: { label: "Planeado", variant: "secondary", icon: Calendar },
-  in_progress: { label: "Em Progresso", variant: "default", icon: Clock },
-  waiting_external: { label: "Aguarda Externo", variant: "warning", icon: Pause },
-  blocked: { label: "Bloqueado", variant: "destructive", icon: AlertCircle },
-  completed: { label: "Concluído", variant: "success", icon: CheckCircle2 },
-  cancelled: { label: "Cancelado", variant: "secondary", icon: AlertCircle },
+  Draft: { label: "Rascunho", variant: "secondary", icon: Clock },
+  Planned: { label: "Planeado", variant: "secondary", icon: Calendar },
+  InProgress: { label: "Em Progresso", variant: "default", icon: Clock },
+  WaitingExternal: { label: "Aguarda Externo", variant: "warning", icon: Pause },
+  Blocked: { label: "Bloqueado", variant: "destructive", icon: AlertCircle },
+  Completed: { label: "Concluído", variant: "success", icon: CheckCircle2 },
+  Cancelled: { label: "Cancelado", variant: "secondary", icon: AlertCircle },
 };
 
 const priorityConfig: Record<string, { label: string; variant: "default" | "destructive" | "warning" }> = {
-  low: { label: "Baixa", variant: "default" },
-  medium: { label: "Média", variant: "warning" },
-  high: { label: "Alta", variant: "warning" },
-  critical: { label: "Crítica", variant: "destructive" },
+  Low: { label: "Baixa", variant: "default" },
+  Medium: { label: "Média", variant: "warning" },
+  High: { label: "Alta", variant: "warning" },
+  Critical: { label: "Crítica", variant: "destructive" },
 };
 
 export default function ObjectivesPage() {
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [filteredObjectives, setFilteredObjectives] = useState<Objective[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredObjectives = mockObjectives.filter((obj) => {
-    const matchesSearch = 
-      obj.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      obj.condominium.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTab = activeTab === "all" || 
-      (activeTab === "active" && !["completed", "cancelled"].includes(obj.status)) ||
-      (activeTab === "completed" && obj.status === "completed") ||
-      (activeTab === "blocked" && obj.status === "blocked");
-    return matchesSearch && matchesTab;
-  });
+  useEffect(() => {
+    async function fetchObjectives() {
+      try {
+        setLoading(true);
+        const data = await objectivesApi.getAll();
+        setObjectives(data);
+        setFilteredObjectives(data);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch objectives:", err);
+        setError("Erro ao carregar objetivos. A usar dados de demonstração.");
+        const demoData: Objective[] = [
+          { id: "1", title: "Substituição portas de entrada", description: "Substituir 24 portas de entrada", status: "InProgress", priority: "High", condominiumName: "Parque das Flores", progress: 60, isPublic: true, createdAt: new Date().toISOString() },
+          { id: "2", title: "Limpeza fachadas", description: "Contratar serviço de limpeza", status: "InProgress", priority: "Medium", condominiumName: "Vista Mar", progress: 30, isPublic: true, createdAt: new Date().toISOString() },
+          { id: "3", title: "Reparação elevador", description: "Reparação do elevador", status: "Blocked", priority: "Critical", condominiumName: "Solar Dourado", progress: 20, isPublic: true, createdAt: new Date().toISOString() },
+        ];
+        setObjectives(demoData);
+        setFilteredObjectives(demoData);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchObjectives();
+  }, []);
+
+  useEffect(() => {
+    const filtered = objectives.filter((obj) => {
+      const matchesSearch = 
+        obj.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        obj.condominiumName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesTab = activeTab === "all" || 
+        (activeTab === "active" && !["Completed", "Cancelled"].includes(obj.status)) ||
+        (activeTab === "completed" && obj.status === "Completed") ||
+        (activeTab === "blocked" && obj.status === "Blocked");
+      return matchesSearch && matchesTab;
+    });
+    setFilteredObjectives(filtered);
+  }, [searchTerm, activeTab, objectives]);
+
+  const activeCount = objectives.filter(o => !["Completed", "Cancelled"].includes(o.status)).length;
+  const blockedCount = objectives.filter(o => o.status === "Blocked").length;
+  const completedCount = objectives.filter(o => o.status === "Completed").length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -137,7 +105,7 @@ export default function ObjectivesPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">Objetivos Operacionais</h1>
-              <p className="text-xs text-slate-500">24 objetivos ativos</p>
+              <p className="text-xs text-slate-500">{objectives.length} objetivos</p>
             </div>
           </div>
           <Button>
@@ -149,14 +117,20 @@ export default function ObjectivesPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {error && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+            <p className="text-sm text-amber-800">{error}</p>
+          </div>
+        )}
+
         {/* Filters and Tabs */}
         <div className="flex items-center justify-between mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
-              <TabsTrigger value="all">Todos (24)</TabsTrigger>
-              <TabsTrigger value="active">Em Progresso (19)</TabsTrigger>
-              <TabsTrigger value="blocked">Bloqueados (3)</TabsTrigger>
-              <TabsTrigger value="completed">Concluídos (5)</TabsTrigger>
+              <TabsTrigger value="all">Todos ({objectives.length})</TabsTrigger>
+              <TabsTrigger value="active">Em Progresso ({activeCount})</TabsTrigger>
+              <TabsTrigger value="blocked">Bloqueados ({blockedCount})</TabsTrigger>
+              <TabsTrigger value="completed">Concluídos ({completedCount})</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2">
@@ -177,61 +151,74 @@ export default function ObjectivesPage() {
         </div>
 
         {/* Objectives Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredObjectives.map((objective) => {
-            const status = statusConfig[objective.status];
-            const priority = priorityConfig[objective.priority];
-            const StatusIcon = status.icon;
-            const isOverdue = new Date(objective.deadline) < new Date() && objective.status !== "completed";
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+          </div>
+        ) : filteredObjectives.length === 0 ? (
+          <div className="text-center py-20 text-slate-500">
+            <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum objetivo encontrado</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredObjectives.map((objective) => {
+              const status = statusConfig[objective.status] || statusConfig.Draft;
+              const priority = priorityConfig[objective.priority] || priorityConfig.Medium;
+              const StatusIcon = status.icon;
+              const isOverdue = objective.targetDate && new Date(objective.targetDate) < new Date() && objective.status !== "Completed";
 
-            return (
-              <Card key={objective.id} className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <Badge variant={priority.variant as "default" | "destructive" | "warning"} className="mb-2">
-                        {priority.label}
-                      </Badge>
-                      <CardTitle className="text-base">{objective.title}</CardTitle>
+              return (
+                <Card key={objective.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <Badge variant={priority.variant as "default" | "destructive" | "warning"} className="mb-2">
+                          {priority.label}
+                        </Badge>
+                        <CardTitle className="text-base">{objective.title}</CardTitle>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-600 mb-4 line-clamp-2">{objective.description}</p>
-                  
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-3">
-                    <Building2 className="w-3 h-3" />
-                    {objective.condominium}
-                  </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{objective.description}</p>
+                    
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-3">
+                      <Building2 className="w-3 h-3" />
+                      {objective.condominiumName}
+                    </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">Progresso</span>
-                      <span className="font-medium">{objective.progress}%</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500">Progresso</span>
+                        <span className="font-medium">{objective.progress}%</span>
+                      </div>
+                      <Progress value={objective.progress} className="h-2" />
                     </div>
-                    <Progress value={objective.progress} className="h-2" />
-                  </div>
 
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={status.variant}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {status.label}
-                      </Badge>
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={status.variant}>
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {status.label}
+                        </Badge>
+                      </div>
+                      {objective.targetDate && (
+                        <div className={`flex items-center gap-1 text-xs ${isOverdue ? "text-red-600" : "text-slate-500"}`}>
+                          <Calendar className="w-3 h-3" />
+                          {new Date(objective.targetDate).toLocaleDateString("pt-PT")}
+                        </div>
+                      )}
                     </div>
-                    <div className={`flex items-center gap-1 text-xs ${isOverdue ? "text-red-600" : "text-slate-500"}`}>
-                      <Calendar className="w-3 h-3" />
-                      {new Date(objective.deadline).toLocaleDateString("pt-PT")}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );

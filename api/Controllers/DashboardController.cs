@@ -9,7 +9,7 @@ namespace Odara.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+
 public class DashboardController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

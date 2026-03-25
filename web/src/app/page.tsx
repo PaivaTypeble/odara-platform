@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Building2,
@@ -8,11 +10,69 @@ import {
   BarChart3,
   Bell,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { dashboardApi, DashboardStats, Activity } from "@/lib/api-client";
+
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffHours < 1) return "há poucos minutos";
+  if (diffHours < 24) return `há ${diffHours} hora${diffHours > 1 ? "s" : ""}`;
+  if (diffDays < 7) return `há ${diffDays} dia${diffDays > 1 ? "s" : ""}`;
+  return date.toLocaleDateString("pt-PT");
+}
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [statsData, activitiesData] = await Promise.all([
+          dashboardApi.getStats(),
+          dashboardApi.getRecentActivity(10),
+        ]);
+        setStats(statsData);
+        setActivities(activitiesData);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+        setError("Erro ao carregar dados. A usar dados de demonstração.");
+        // Use demo data on error
+        setStats({
+          totalCondominiums: 3,
+          activeObjectives: 5,
+          overdueObjectives: 1,
+          blockedObjectives: 0,
+          openRFPs: 2,
+          pendingProposals: 3,
+          maintenanceDue: 4,
+          maintenanceOverdue: 1,
+        });
+        setActivities([
+          { type: "objective", id: "1", title: "Substituição portas entrada", status: "InProgress", condominium: "Parque das Flores", updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+          { type: "assembly", id: "2", title: "Assembleia Ordinária", status: "Scheduled", condominium: "Vista Mar", updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
+          { type: "maintenance", id: "3", title: "Manutenção elevador", status: "Scheduled", condominium: "Solar Dourado", updatedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
@@ -55,37 +115,45 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Condomínios</CardDescription>
-              <CardTitle className="text-3xl">16</CardTitle>
+              <CardTitle className="text-3xl">
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : stats?.totalCondominiums ?? 0}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-slate-500">4 com elevadores</p>
+              <p className="text-xs text-slate-500">ativos no sistema</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Objetivos Ativos</CardDescription>
-              <CardTitle className="text-3xl">24</CardTitle>
+              <CardTitle className="text-3xl">
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : stats?.activeObjectives ?? 0}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-amber-600">3 vencidos</p>
+              <p className="text-xs text-amber-600">{stats?.overdueObjectives ?? 0} vencidos</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Propostas Pendentes</CardDescription>
-              <CardTitle className="text-3xl">8</CardTitle>
+              <CardDescription>Propostas Abertas</CardDescription>
+              <CardTitle className="text-3xl">
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : stats?.openRFPs ?? 0}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-slate-500">5 aguardam resposta</p>
+              <p className="text-xs text-slate-500">{stats?.pendingProposals ?? 0} aguardam resposta</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Manutenções</CardDescription>
-              <CardTitle className="text-3xl">12</CardTitle>
+              <CardTitle className="text-3xl">
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : stats?.maintenanceDue ?? 0}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-slate-500">2 agendadas</p>
+              <p className="text-xs text-slate-500">{stats?.maintenanceOverdue ?? 0} em atraso</p>
             </CardContent>
           </Card>
         </div>
@@ -214,28 +282,39 @@ export default function DashboardPage() {
             <CardDescription>Últimas atualizações na plataforma</CardDescription>
           </CardHeader>
           <CardContent>
+            {error && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-sm text-amber-800">{error}</p>
+              </div>
+            )}
             <div className="space-y-4">
-              <div className="flex items-start gap-4 pb-4 border-b">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2" />
-                <div className="flex-1">
-                  <p className="font-medium">Objetivo "Substituição portas entrada" atualizado</p>
-                  <p className="text-sm text-slate-500">Condomínio Parque das Flores - há 2 horas</p>
+              {activities.length === 0 && !loading && (
+                <p className="text-sm text-slate-500">Nenhuma atividade recente</p>
+              )}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                 </div>
-              </div>
-              <div className="flex items-start gap-4 pb-4 border-b">
-                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2" />
-                <div className="flex-1">
-                  <p className="font-medium">Proposta recebida de Limpezas Total</p>
-                  <p className="text-sm text-slate-500">Serviço de limpeza comum - há 5 horas</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="w-2 h-2 rounded-full bg-amber-500 mt-2" />
-                <div className="flex-1">
-                  <p className="font-medium">Assembleia agendada para 28 de Março</p>
-                  <p className="text-sm text-slate-500">Condomínio Vista Mar - há 1 dia</p>
-                </div>
-              </div>
+              ) : (
+                activities.slice(0, 5).map((activity) => (
+                  <div key={`${activity.type}-${activity.id}`} className="flex items-start gap-4 pb-4 border-b last:border-0">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.type === "objective" ? "bg-emerald-500" :
+                      activity.type === "assembly" ? "bg-blue-500" :
+                      activity.type === "maintenance" ? "bg-purple-500" :
+                      "bg-slate-500"
+                    }`} />
+                    <div className="flex-1">
+                      <p className="font-medium">{activity.title}</p>
+                      <p className="text-sm text-slate-500">
+                        {activity.type === "objective" ? "Objetivo" :
+                         activity.type === "assembly" ? "Assembleia" :
+                         activity.type === "maintenance" ? "Manutenção" : activity.type} - {activity.condominium} - {formatTimeAgo(activity.updatedAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
